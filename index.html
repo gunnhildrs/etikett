@@ -143,18 +143,17 @@ input:focus,textarea:focus{border-color:var(--a1);box-shadow:0 0 0 3px var(--glo
 
 <div class="hdr">
   <div class="tag">🎟 E-Tiket Generator</div>
-  <h1>E-Tiket + <em>QR Code</em> +<br/><em>PDF</em> → Email via <em>n8n</em></h1>
-  <p class="sub">Input string & email · e-tiket PDF digenerate otomatis · dikirim via n8n + email</p>
+  <h1>Konserin AJA</h1>
 </div>
 
 <div class="pipeline">
   <div class="pip-step"><div class="pip-icon" id="p1">✏️</div><div class="pip-label">INPUT</div></div>
   <div class="pip-arrow">→</div>
-  <div class="pip-step"><div class="pip-icon" id="p2">🔑</div><div class="pip-label">AES-256</div></div>
+  <div class="pip-step"><div class="pip-icon" id="p2">🔑</div><div class="pip-label">Scure</div></div>
   <div class="pip-arrow">→</div>
   <div class="pip-step"><div class="pip-icon" id="p3">📦</div><div class="pip-label">QR CODE</div></div>
   <div class="pip-arrow">→</div>
-  <div class="pip-step"><div class="pip-icon" id="p4">🕵️</div><div class="pip-label">LSB STEGO</div></div>
+  <div class="pip-step"><div class="pip-icon" id="p4">🕵️</div><div class="pip-label">Encript</div></div>
   <div class="pip-arrow">→</div>
   <div class="pip-step"><div class="pip-icon" id="p5">📄</div><div class="pip-label">PDF</div></div>
   <div class="pip-arrow">→</div>
@@ -327,10 +326,8 @@ function lsbEmbed(ctx, w, h, msg){
   return { bitsUsed: idx, capacity: cap };
 }
 
-/* ══════════════════════════════
-   GENERATE PDF menggunakan jsPDF
-   Returns base64 string PDF
-══════════════════════════════ */
+/* GENERATE PDF menggunakan jsPDF
+   Returns base64 string PDF  */
 function generatePDFBase64(data){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });

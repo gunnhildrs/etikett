@@ -164,16 +164,14 @@ input:focus,textarea:focus{border-color:var(--a1);box-shadow:0 0 0 3px var(--glo
   <div class="field">
     <label class="lbl"><span class="lnum">1</span> String Data</label>
     <div class="str-wrap">
-      <textarea id="strInput" placeholder="Masukkan teks, URL, nomor HP, atau data apapun..." oninput="onStrInput()" rows="3"></textarea>
+      <textarea id="strInput" placeholder="Masukkan nomor NIK anda" oninput="onStrInput()" rows="3"></textarea>
       <span class="char-count" id="cc">0</span>
     </div>
-    <div class="auto-badge">⚙ Kunci AES & pesan stego digenerate otomatis dari string ini</div>
-  </div>
+    
 
   <div class="field">
-    <label class="lbl"><span class="lnum">2</span> Email Tujuan</label>
+    <label class="lbl"><span class="lnum">2</span> Email Anda</label>
     <div class="email-wrap">
-      <span class="email-at">@</span>
       <input type="email" id="emailInput" placeholder="penerima@email.com" oninput="onEmailInput()"/>
     </div>
     <div class="ev" id="ev"></div>

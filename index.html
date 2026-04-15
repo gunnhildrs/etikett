@@ -551,9 +551,15 @@ function showESS(state, msg){
 async function doSend(to, strVal, cipher, aesKey, stegoInfo, pdfBase64){
   // Ambil pure base64 string dari data URI
   // pdfBase64 format: "data:application/pdf;base64,JVBERi0x..."
-  const pdfData = pdfBase64
-    ? pdfBase64.replace(/^data:application\/pdf;base64,/, '')
-    : null;
+  let pdfData = null;
+if (pdfBase64 && typeof pdfBase64 === 'string') {
+    // Jika mengandung koma, ambil setelah koma (base64 murni)
+    if (pdfBase64.includes(',')) {
+        pdfData = pdfBase64.split(',')[1];
+    } else {
+        pdfData = pdfBase64;
+    }
+}
 
   const payload = {
     to_email     : to,

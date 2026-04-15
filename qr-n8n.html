@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>E-Tiket Generator — n8n</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<!-- jsPDF for PDF generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07080f;--s1:#0e0f1a;--s2:#161728;--border:#21233a;
+  --a1:#6ee7f7;--a2:#b06ef7;--a3:#f7c46e;
+  --green:#6ef7a8;--red:#f76e6e;--text:#dde0f5;--muted:#6b6e8f;
+  --glow1:rgba(110,231,247,0.12);
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:3rem 1rem 6rem;display:flex;flex-direction:column;align-items:center}
+body::before{content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 70% 50% at 15% 0%,rgba(110,231,247,.05),transparent),
+    radial-gradient(ellipse 60% 40% at 85% 100%,rgba(176,110,247,.06),transparent),
+    linear-gradient(rgba(110,231,247,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(110,231,247,.02) 1px,transparent 1px);
+  background-size:auto,auto,44px 44px,44px 44px;
+  pointer-events:none;z-index:0}
+.wrap{width:100%;max-width:680px;position:relative;z-index:1}
+
+.hdr{text-align:center;margin-bottom:2.8rem;animation:fadeDown .6s ease both}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
+.tag{display:inline-flex;align-items:center;gap:.4rem;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.2em;color:var(--a1);border:1px solid rgba(110,231,247,.2);padding:.26rem .8rem;border-radius:100px;margin-bottom:1rem;text-transform:uppercase}
+.tag::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--a1);animation:blink 1.4s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
+h1{font-size:clamp(1.9rem,5.5vw,3rem);font-weight:700;letter-spacing:-.03em;line-height:1.1}
+h1 em{font-style:normal;background:linear-gradient(135deg,var(--a1),var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sub{margin-top:.55rem;color:var(--muted);font-size:.85rem;line-height:1.6}
+
+.pipeline{display:flex;align-items:center;justify-content:center;gap:.3rem;margin-bottom:2.2rem;flex-wrap:wrap;animation:fadeDown .6s .08s ease both}
+.pip-step{display:flex;flex-direction:column;align-items:center;gap:.28rem}
+.pip-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;border:1px solid var(--border);background:var(--s1);transition:.3s}
+.pip-icon.done{border-color:var(--green);background:rgba(110,247,168,.05);box-shadow:0 0 10px rgba(110,247,168,.15)}
+.pip-icon.active{border-color:var(--a1);background:rgba(110,231,247,.05);animation:pp .9s infinite alternate}
+@keyframes pp{from{box-shadow:0 0 5px var(--glow1)}to{box-shadow:0 0 16px rgba(110,231,247,.25)}}
+.pip-label{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);letter-spacing:.05em;text-align:center}
+.pip-arrow{color:var(--border);font-size:.85rem;margin-top:-14px}
+
+.card{background:var(--s1);border:1px solid var(--border);border-radius:22px;padding:2rem;margin-bottom:1.2rem;animation:fadeUp .55s .12s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+.field{margin-bottom:1.25rem}
+.field:last-of-type{margin-bottom:0}
+label.lbl{display:flex;align-items:center;gap:.5rem;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem}
+label.lbl .lnum{width:18px;height:18px;border-radius:50%;background:rgba(110,231,247,.1);border:1px solid rgba(110,231,247,.2);display:flex;align-items:center;justify-content:center;font-size:.55rem;color:var(--a1)}
+
+.email-wrap{position:relative}
+.email-at{position:absolute;left:.95rem;top:50%;transform:translateY(-50%);color:var(--a1);font-weight:700;font-size:.9rem;pointer-events:none;font-family:'JetBrains Mono',monospace}
+.email-wrap input{padding-left:2.35rem}
+.ev{font-family:'JetBrains Mono',monospace;font-size:.6rem;margin-top:.38rem;opacity:0;transition:.25s;display:flex;align-items:center;gap:.28rem}
+.ev.ok{color:var(--green);opacity:1}.ev.bad{color:var(--red);opacity:1}
+
+.str-wrap{position:relative}
+textarea{
+  width:100%;background:var(--s2);border:1px solid var(--border);border-radius:12px;
+  padding:.85rem 1rem 2rem 1rem;color:var(--text);font-family:'JetBrains Mono',monospace;
+  font-size:.83rem;outline:none;transition:.25s;resize:none;min-height:90px;line-height:1.6
+}
+input[type=email]{
+  width:100%;background:var(--s2);border:1px solid var(--border);border-radius:12px;
+  padding:.85rem 1rem;color:var(--text);font-family:'JetBrains Mono',monospace;
+  font-size:.83rem;outline:none;transition:.25s
+}
+input:focus,textarea:focus{border-color:var(--a1);box-shadow:0 0 0 3px var(--glow1)}
+.char-count{position:absolute;right:.85rem;bottom:.65rem;font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);pointer-events:none}
+
+.auto-badge{display:inline-flex;align-items:center;gap:.35rem;font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--green);background:rgba(110,247,168,.07);border:1px solid rgba(110,247,168,.15);padding:.22rem .65rem;border-radius:100px;margin-top:.45rem}
+.auto-badge::before{content:'⚙'}
+
+/* PDF ATTACHMENT BADGE */
+.pdf-badge{display:inline-flex;align-items:center;gap:.35rem;font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--a3);background:rgba(247,196,110,.07);border:1px solid rgba(247,196,110,.15);padding:.22rem .65rem;border-radius:100px;margin-top:.4rem}
+
+.btn-gen{width:100%;padding:1rem 1.5rem;background:linear-gradient(135deg,var(--a1),var(--a2));border:none;border-radius:14px;color:#07080f;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1rem;cursor:pointer;transition:.25s;letter-spacing:.03em;margin-top:1.4rem;display:flex;align-items:center;justify-content:center;gap:.6rem}
+.btn-gen:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(110,231,247,.2)}
+.btn-gen:active{transform:translateY(0)}.btn-gen:disabled{opacity:.36;cursor:not-allowed;transform:none}
+
+.pw{margin-top:1.1rem;display:none}
+.prog-bg{height:3px;background:var(--border);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--a1),var(--a2));border-radius:3px;width:0%;transition:width .3s ease}
+.prog-log{margin-top:.65rem;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted);display:flex;flex-direction:column;gap:.18rem;max-height:130px;overflow:hidden}
+.ll{animation:sli .25s ease}
+@keyframes sli{from{opacity:0;transform:translateX(-5px)}to{opacity:1;transform:translateX(0)}}
+.lok{color:var(--green)}.linf{color:var(--a1)}.lwrn{color:var(--a3)}.lerr{color:var(--red)}
+
+.ess{margin-top:.85rem;border-radius:12px;padding:.82rem 1.1rem;display:none;align-items:center;gap:.6rem;font-family:'JetBrains Mono',monospace;font-size:.73rem}
+.ess.sending{display:flex;background:rgba(110,231,247,.06);border:1px solid rgba(110,231,247,.14);color:var(--a1)}
+.ess.success{display:flex;background:rgba(110,247,168,.06);border:1px solid rgba(110,247,168,.16);color:var(--green)}
+.ess.error{display:flex;background:rgba(247,110,110,.06);border:1px solid rgba(247,110,110,.16);color:var(--red)}
+.spin{animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+#rs{display:none;animation:fadeUp .4s ease}
+.result-card{background:var(--s1);border:1px solid var(--border);border-radius:22px;padding:1.75rem;margin-bottom:1.2rem}
+.card-title{font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.18em;color:var(--a1);text-transform:uppercase;margin-bottom:1.2rem;display:flex;align-items:center;gap:.5rem}
+.card-title::before,.card-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.rg{display:grid;grid-template-columns:auto 1fr;gap:1.4rem;align-items:start}
+.qrbox{background:#fff;border-radius:14px;padding:1rem;display:flex;align-items:center;justify-content:center;box-shadow:0 0 24px rgba(110,231,247,.12)}
+#qrcanvas{display:block}
+
+.ip{display:flex;flex-direction:column;gap:.55rem}
+.ir{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem}
+.ik{font-family:'JetBrains Mono',monospace;font-size:.53rem;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:.2rem}
+.iv{font-family:'JetBrains Mono',monospace;font-size:.72rem;word-break:break-all;line-height:1.5;color:var(--a1)}
+.iv.g{color:var(--green)}.iv.p{color:var(--a2)}.iv.y{color:var(--a3)}
+
+.brow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem;margin-top:.9rem}
+.bp{padding:.78rem;border-radius:11px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.78rem;cursor:pointer;transition:.22s;border:none;text-align:center}
+.bp.pr{background:var(--a2);color:#07080f}.bp.ac{background:var(--a1);color:#07080f}
+.bp.sc{background:transparent;border:1px solid var(--a1);color:var(--a1)}
+.bp:hover{transform:translateY(-2px);opacity:.88}
+
+.how{background:var(--s1);border:1px solid var(--border);border-radius:22px;padding:1.75rem;animation:fadeUp .55s .18s ease both}
+.how-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem;margin-top:1.1rem}
+.how-item{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:.95rem}
+.how-ico{font-size:1.2rem;margin-bottom:.35rem}
+.how-n{font-weight:600;font-size:.8rem;margin-bottom:.2rem}
+.how-d{font-size:.68rem;color:var(--muted);line-height:1.55}
+
+/* PDF Download notification */
+.pdf-notif{display:none;margin-top:.7rem;background:rgba(247,196,110,.07);border:1px solid rgba(247,196,110,.2);border-radius:10px;padding:.75rem 1rem;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--a3);align-items:center;gap:.55rem}
+.pdf-notif.show{display:flex}
+
+@media(max-width:540px){
+  .rg,.brow,.how-grid{grid-template-columns:1fr}
+  .pipeline{gap:.2rem}
+  .pip-arrow{font-size:.75rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div class="tag">🎟 E-Tiket Generator</div>
+  <h1>E-Tiket + <em>QR Code</em> +<br/><em>PDF</em> → Email via <em>n8n</em></h1>
+  <p class="sub">Input string & email · e-tiket PDF digenerate otomatis · dikirim via n8n + email</p>
+</div>
+
+<div class="pipeline">
+  <div class="pip-step"><div class="pip-icon" id="p1">✏️</div><div class="pip-label">INPUT</div></div>
+  <div class="pip-arrow">→</div>
+  <div class="pip-step"><div class="pip-icon" id="p2">🔑</div><div class="pip-label">AES-256</div></div>
+  <div class="pip-arrow">→</div>
+  <div class="pip-step"><div class="pip-icon" id="p3">📦</div><div class="pip-label">QR CODE</div></div>
+  <div class="pip-arrow">→</div>
+  <div class="pip-step"><div class="pip-icon" id="p4">🕵️</div><div class="pip-label">LSB STEGO</div></div>
+  <div class="pip-arrow">→</div>
+  <div class="pip-step"><div class="pip-icon" id="p5">📄</div><div class="pip-label">PDF</div></div>
+  <div class="pip-arrow">→</div>
+  <div class="pip-step"><div class="pip-icon" id="p6">📧</div><div class="pip-label">EMAIL</div></div>
+</div>
+
+<div class="card">
+  <div class="field">
+    <label class="lbl"><span class="lnum">1</span> String Data</label>
+    <div class="str-wrap">
+      <textarea id="strInput" placeholder="Masukkan teks, URL, nomor HP, atau data apapun..." oninput="onStrInput()" rows="3"></textarea>
+      <span class="char-count" id="cc">0</span>
+    </div>
+    <div class="auto-badge">⚙ Kunci AES & pesan stego digenerate otomatis dari string ini</div>
+  </div>
+
+  <div class="field">
+    <label class="lbl"><span class="lnum">2</span> Email Tujuan</label>
+    <div class="email-wrap">
+      <span class="email-at">@</span>
+      <input type="email" id="emailInput" placeholder="penerima@email.com" oninput="onEmailInput()"/>
+    </div>
+    <div class="ev" id="ev"></div>
+    <div class="pdf-badge">📄 E-tiket PDF digenerate · dikirim ke email via n8n webhook otomatis</div>
+  </div>
+
+  <button class="btn-gen" id="genBtn" onclick="runPipeline()">
+    <span>⚡</span> Generate & Kirim PDF ke Email
+  </button>
+
+  <div class="pw" id="pw">
+    <div class="prog-bg"><div class="prog-fill" id="pf"></div></div>
+    <div class="prog-log" id="pl"></div>
+  </div>
+
+  <div class="pdf-notif" id="pdfNotif">
+    <span>📄</span><span id="pdfNotifMsg"></span>
+  </div>
+
+  <div class="ess" id="ess">
+    <span id="ess-ico" class="spin">⟳</span>
+    <span id="ess-msg"></span>
+  </div>
+</div>
+
+<div id="rs">
+  <div class="result-card">
+    <div class="card-title">// Hasil Generate</div>
+    <div class="rg">
+      <div class="qrbox"><canvas id="qrcanvas" width="200" height="200"></canvas></div>
+      <div class="ip">
+        <div class="ir"><div class="ik">String Input</div><div class="iv" id="ri">—</div></div>
+        <div class="ir"><div class="ik">Kunci AES (auto)</div><div class="iv p" id="rk">—</div></div>
+        <div class="ir"><div class="ik">Ciphertext</div><div class="iv p" id="rc">—</div></div>
+        <div class="ir"><div class="ik">LSB Steganografi</div><div class="iv g" id="rst">—</div></div>
+        <div class="ir"><div class="ik">Email Terkirim ke</div><div class="iv y" id="re">—</div></div>
+      </div>
+    </div>
+    <div class="brow">
+      <button class="bp pr" onclick="exportPDF()">📄 Lihat/Unduh PDF</button>
+      <button class="bp ac" onclick="resend()">📧 Kirim Ulang</button>
+      <button class="bp sc" onclick="dlQR()">⬇️ Unduh QR</button>
+    </div>
+  </div>
+
+  <div class="how">
+    <div class="card-title">// Cara Kerja Otomatis</div>
+    <div class="how-grid">
+      <div class="how-item"><div class="how-ico">🔑</div><div class="how-n">AES-256 Auto</div><div class="how-d">Kunci enkripsi digenerate dari hash SHA-256 string input. Unik per string.</div></div>
+      <div class="how-item"><div class="how-ico">🕵️</div><div class="how-n">LSB Auto</div><div class="how-d">Pesan stego = ciphertext dari string. Disisipkan ke bit terakhir piksel QR.</div></div>
+      <div class="how-item"><div class="how-ico">📧</div><div class="how-n">PDF + Email</div><div class="how-d">PDF e-tiket dikirim sebagai lampiran email via n8n webhook. Tidak ada batasan ukuran file.</div></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ══════════════════════════════
+   N8N WEBHOOK CONFIG
+   Ganti URL di bawah dengan Webhook URL dari workflow n8n Anda
+══════════════════════════════ */
+const N8N_WEBHOOK_URL = 'https://euno.app.n8n.cloud/webhook/eticket';
+// Contoh: 'https://n8n.domain.com/webhook/eticket'
+// Atau local: 'http://localhost:5678/webhook/eticket'
+
+/* ══════════════════════════════
+   HELPERS
+══════════════════════════════ */
+const G   = id => document.getElementById(id);
+const esc = s  => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let RD = {};
+
+/* ══════════════════════════════
+   INPUT HANDLERS
+══════════════════════════════ */
+function onStrInput(){
+  G('cc').textContent = G('strInput').value.length;
+}
+
+function onEmailInput(){
+  const v = G('emailInput').value, el = G('ev');
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  if(!v){ el.className='ev'; return; }
+  el.className = ok ? 'ev ok' : 'ev bad';
+  el.textContent = ok ? '✓ Email valid' : '✗ Format tidak valid';
+}
+
+function isEmailOk(){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(G('emailInput').value);
+}
+
+/* ══════════════════════════════
+   AUTO-GENERATE KEY dari string
+══════════════════════════════ */
+function autoKey(str){
+  return CryptoJS.SHA256(str).toString(CryptoJS.enc.Hex);
+}
+
+/* ══════════════════════════════
+   AES-256 ENKRIPSI
+══════════════════════════════ */
+function aesEnc(plaintext, key){
+  return CryptoJS.AES.encrypt(plaintext, key).toString();
+}
+
+/* ══════════════════════════════
+   QR CODE GENERATOR
+══════════════════════════════ */
+async function genQR(text){
+  let tmp = G('_qt');
+  if(!tmp){
+    tmp = document.createElement('div');
+    tmp.id = '_qt';
+    tmp.style.cssText = 'position:absolute;left:-9999px;top:-9999px';
+    document.body.appendChild(tmp);
+  }
+  tmp.innerHTML = '';
+  return new Promise(res => {
+    new QRCode(tmp, {
+      text, width:200, height:200,
+      colorDark:'#000000', colorLight:'#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    setTimeout(() => res(tmp.querySelector('canvas') || tmp.querySelector('img')), 400);
+  });
+}
+
+/* ══════════════════════════════
+   LSB STEGANOGRAFI
+══════════════════════════════ */
+function str2bin(s){
+  let b = '';
+  for(let i=0; i<s.length; i++) b += s.charCodeAt(i).toString(2).padStart(8,'0');
+  return b;
+}
+
+function lsbEmbed(ctx, w, h, msg){
+  const bin = str2bin(msg + '\0');
+  const d   = ctx.getImageData(0,0,w,h), px = d.data;
+  const cap = Math.floor((px.length / 4) * 3);
+  if(bin.length > cap) throw new Error('Data terlalu panjang untuk kapasitas gambar');
+  let idx = 0;
+  for(let i=0; i<px.length && idx<bin.length; i++){
+    if((i+1) % 4 === 0) continue;
+    px[i] = (px[i] & 0xFE) | parseInt(bin[idx++]);
+  }
+  ctx.putImageData(d, 0, 0);
+  return { bitsUsed: idx, capacity: cap };
+}
+
+/* ══════════════════════════════
+   GENERATE PDF menggunakan jsPDF
+   Returns base64 string PDF
+══════════════════════════════ */
+function generatePDFBase64(data){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W = 210, margin = 18;
+  let y = 0;
+
+  // === HEADER BACKGROUND ===
+  doc.setFillColor(13,14,28);
+  doc.rect(0, 0, W, 42, 'F');
+
+  // Header title
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.setTextColor(110,231,247);
+  doc.text('QR + Enkripsi AES-256 + Steganografi', margin, 16);
+
+  doc.setFontSize(8);
+  doc.setTextColor(139,144,181);
+  doc.text('Laporan Teknis — Semua proses otomatis dari string input', margin, 23);
+
+  // Right side info
+  const d = data.ts;
+  const ds = d.toLocaleDateString('id-ID',{year:'numeric',month:'long',day:'numeric'});
+  const ts = d.toLocaleTimeString('id-ID');
+  doc.setFontSize(7);
+  doc.setTextColor(176,110,247);
+  doc.text('Tanggal: ' + ds, W - margin, 16, {align:'right'});
+  doc.text('Waktu: ' + ts, W - margin, 22, {align:'right'});
+  doc.text('Ke: ' + data.email, W - margin, 28, {align:'right'});
+
+  // Header divider
+  doc.setDrawColor(33,35,58);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 42, W - margin, 42);
+
+  y = 52;
+
+  // === SECTION: QR CODE + INFO ===
+  doc.setFontSize(7);
+  doc.setTextColor(107,110,143);
+  doc.setFont('helvetica','bold');
+  doc.text('// DATA INPUT & QR CODE', margin, y);
+  doc.setDrawColor(33,35,58);
+  doc.line(margin, y+2, W-margin, y+2);
+  y += 8;
+
+  // QR image box
+  const qrSize = 44;
+  doc.setFillColor(248,249,255);
+  doc.setDrawColor(226,229,245);
+  doc.roundedRect(margin, y, qrSize+6, qrSize+6, 3, 3, 'FD');
+  try{
+    doc.addImage(data.qrB64, 'PNG', margin+3, y+3, qrSize, qrSize);
+  }catch(e){}
+
+  // LSB badge under QR
+  doc.setFillColor(232,245,233);
+  doc.roundedRect(margin, y+qrSize+9, 22, 5, 2, 2, 'F');
+  doc.setFontSize(6);
+  doc.setTextColor(46,125,50);
+  doc.text('✓ LSB Encoded', margin+11, y+qrSize+12.5, {align:'center'});
+
+  // Info rows beside QR
+  const ix = margin + qrSize + 12;
+  const iw = W - margin - ix;
+
+  function infoRow(label, value, color, yy){
+    doc.setFillColor(244,245,251);
+    doc.roundedRect(ix, yy, iw, 9, 2, 2, 'F');
+    doc.setFontSize(5.5);
+    doc.setTextColor(107,110,143);
+    doc.setFont('helvetica','normal');
+    doc.text(label.toUpperCase(), ix+3, yy+3.5);
+    doc.setFontSize(6.5);
+    doc.setTextColor(...color);
+    doc.setFont('helvetica','bold');
+    const maxChars = Math.floor(iw * 1.5);
+    const v = value.length > maxChars ? value.substring(0, maxChars)+'...' : value;
+    doc.text(v, ix+3, yy+7.5);
+  }
+
+  let iy = y;
+  infoRow('String Input (Isi QR)', data.strVal, [26,26,46], iy); iy+=10.5;
+  infoRow('Panjang String', data.strVal.length+' karakter', [26,26,46], iy); iy+=10.5;
+  infoRow('Kunci AES-256 (auto SHA-256)', data.aesKey.substring(0,32)+'...', [176,110,247], iy); iy+=10.5;
+  infoRow('Email Tujuan', data.email, [110,247,168], iy); iy+=10.5;
+  infoRow('Bit LSB Digunakan', data.bitsUsed+' bit ('+data.pct+'% kapasitas)', [247,196,110], iy);
+
+  y = Math.max(y + qrSize + 20, iy + 16);
+
+  // === CIPHERTEXT BOX ===
+  doc.setFillColor(13,14,28);
+  doc.roundedRect(margin, y, W-margin*2, 22, 3, 3, 'F');
+  doc.setFontSize(6);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(110,231,247);
+  doc.text('⬡ CIPHERTEXT — AES-256-CBC (Base64)', margin+4, y+6);
+  doc.setFontSize(6.2);
+  doc.setTextColor(176,110,247);
+  doc.setFont('helvetica','normal');
+  const cLines = doc.splitTextToSize(data.cipher, W-margin*2-8);
+  doc.text(cLines.slice(0,3), margin+4, y+12);
+  y += 28;
+
+  // === STEGANOGRAFI STATS ===
+  doc.setFontSize(7);
+  doc.setTextColor(107,110,143);
+  doc.setFont('helvetica','bold');
+  doc.text('// STATISTIK STEGANOGRAFI LSB', margin, y);
+  doc.line(margin, y+2, W-margin, y+2);
+  y += 8;
+
+  const statsData = [
+    ['Metode','LSB — Least Significant Bit'],
+    ['Sumber pesan stego','Ciphertext AES-256 dari string input'],
+    ['Channel piksel','R, G, B (3 channel / piksel)'],
+    ['Kapasitas maksimum',data.capacity+' bit (200×200×3)'],
+    ['Bit yang digunakan',data.bitsUsed+' bit ('+data.pct+'%)'],
+    ['Visual impact','Tidak terlihat mata (\u0394 \u22641/255 per channel)'],
+  ];
+
+  doc.setFillColor(244,245,251);
+  doc.roundedRect(margin, y, W-margin*2, statsData.length*7+4, 3, 3, 'F');
+  statsData.forEach((row,i)=>{
+    const ry = y + 5 + i*7;
+    doc.setFontSize(7);
+    doc.setFont('helvetica','normal');
+    doc.setTextColor(107,110,143);
+    doc.text(row[0], margin+4, ry);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(26,26,46);
+    doc.text(row[1], W-margin-4, ry, {align:'right'});
+    if(i < statsData.length-1){
+      doc.setDrawColor(226,229,245);
+      doc.setLineWidth(0.3);
+      doc.line(margin+4, ry+2.5, W-margin-4, ry+2.5);
+    }
+  });
+  y += statsData.length*7 + 10;
+
+  // === ALUR PROSES ===
+  doc.setFontSize(7);
+  doc.setTextColor(107,110,143);
+  doc.setFont('helvetica','bold');
+  doc.text('// ALUR PROSES OTOMATIS', margin, y);
+  doc.line(margin, y+2, W-margin, y+2);
+  y += 8;
+
+  const steps = [
+    ['01','Input String & Email','User hanya memasukkan string data dan email tujuan.'],
+    ['02','Auto-Generate Kunci AES-256','SHA-256(string) menghasilkan kunci enkripsi unik dan deterministik.'],
+    ['03','Enkripsi AES-256-CBC','String dienkripsi → ciphertext Base64 yang akan disisipkan ke QR.'],
+    ['04','Generate QR Code','String asli diconvert ke QR Code 200x200 px. QR masih bisa di-scan.'],
+    ['05','LSB Steganografi','Ciphertext disisipkan ke bit terakhir (LSB) channel R,G,B setiap piksel.'],
+    ['06','Kirim E-Tiket PDF via n8n','PDF e-tiket digenerate di browser lalu dikirim ke n8n webhook yang melampirkan PDF ke email.'],
+  ];
+
+  steps.forEach((s,i)=>{
+    doc.setFillColor(244,245,251);
+    doc.roundedRect(margin, y, W-margin*2, 11, 2, 2, 'F');
+    doc.setFontSize(7);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor(110,231,247);
+    doc.text(s[0], margin+4, y+7.5);
+    doc.setTextColor(26,26,46);
+    doc.text(s[1], margin+13, y+4.5);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(6);
+    doc.setTextColor(107,110,143);
+    doc.text(s[2], margin+13, y+9);
+    y += 13;
+  });
+
+  // === FOOTER ===
+  const footerY = 287;
+  doc.setFillColor(244,245,251);
+  doc.rect(0, footerY, W, 10, 'F');
+  doc.setFontSize(6);
+  doc.setFont('helvetica','normal');
+  doc.setTextColor(107,110,143);
+  doc.text('Generated by QR Stegano Crypto System', margin, footerY+6);
+  doc.text('AES-256 key = SHA256(string) · LSB pada piksel QR', W/2, footerY+6, {align:'center'});
+  doc.text('E-Tiket via n8n Webhook', W-margin, footerY+6, {align:'right'});
+
+  return doc.output('datauristring'); // returns "data:application/pdf;base64,..."
+}
+
+/* ══════════════════════════════
+   PIPELINE STEP INDICATOR
+══════════════════════════════ */
+function setPipe(n){
+  for(let i=1; i<=6; i++){
+    const e = G('p'+i); e.className = 'pip-icon';
+    if(i < n) e.classList.add('done');
+    else if(i === n) e.classList.add('active');
+  }
+}
+
+function log(msg, cls=''){
+  const w = G('pl'), d = document.createElement('div');
+  d.className = 'll ' + cls; d.textContent = '› ' + msg;
+  w.appendChild(d); w.scrollTop = w.scrollHeight;
+}
+function setP(v){ G('pf').style.width = v + '%'; }
+
+function showESS(state, msg){
+  const el = G('ess'), ic = G('ess-ico'), tx = G('ess-msg');
+  el.className = 'ess ' + state;
+  tx.textContent = msg;
+  ic.textContent = state === 'sending' ? '⟳' : state === 'success' ? '✓' : '✗';
+  ic.className   = state === 'sending' ? 'spin' : '';
+}
+
+/* ══════════════════════════════
+   KIRIM KE N8N WEBHOOK
+   n8n akan memproses PDF attachment dan kirim email
+══════════════════════════════ */
+async function doSend(to, strVal, cipher, aesKey, stegoInfo, pdfBase64){
+  // Ambil pure base64 string dari data URI
+  // pdfBase64 format: "data:application/pdf;base64,JVBERi0x..."
+  const pdfData = pdfBase64
+    ? pdfBase64.replace(/^data:application\/pdf;base64,/, '')
+    : null;
+
+  const payload = {
+    to_email     : to,
+    to_name      : to.split('@')[0],
+    main_string  : strVal,
+    aes_key      : aesKey.substring(0, 16) + '... [SHA-256 auto]',
+    cipher_text  : cipher,
+    stego_info   : stegoInfo,
+    generated_at : new Date().toLocaleString('id-ID'),
+    pdf_base64   : pdfData,       // ← base64 PDF tanpa prefix, n8n yang attach ke email
+    pdf_filename : 'etiket-' + to.split('@')[0] + '.pdf'
+  };
+
+  const res = await fetch(N8N_WEBHOOK_URL, {
+    method : 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body   : JSON.stringify(payload)
+  });
+
+  const text = await res.text();
+  if(!res.ok) throw new Error('HTTP ' + res.status + ': ' + text);
+  return text;
+}
+
+/* ══════════════════════════════
+   AUTO-DOWNLOAD PDF
+══════════════════════════════ */
+function downloadPDF(pdfBase64){
+  const a = document.createElement('a');
+  a.href = pdfBase64;
+  a.download = 'etiket-registrasi.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/* ══════════════════════════════
+   MAIN PIPELINE
+══════════════════════════════ */
+async function runPipeline(){
+  const strVal = G('strInput').value.trim();
+  const email  = G('emailInput').value.trim();
+
+  if(!strVal) return alert('Masukkan string data terlebih dahulu!');
+  if(!isEmailOk()) return alert('Masukkan email tujuan yang valid!');
+
+  G('rs').style.display = 'none';
+  G('ess').className = 'ess';
+  G('pdfNotif').className = 'pdf-notif';
+  G('pw').style.display = 'block';
+  G('pl').innerHTML = '';
+  G('genBtn').disabled = true;
+  setP(0);
+
+  try{
+    /* STEP 1 – Input */
+    setPipe(1);
+    log('Menerima input data...', 'linf');
+    await sleep(200);
+    log('✓ String: ' + strVal.substring(0,50) + (strVal.length>50?'…':''), 'lok');
+    log('✓ Email: ' + email, 'lok');
+    setP(10);
+
+    /* STEP 2 – Auto AES Key + Encrypt */
+    setPipe(2);
+    log('Generate kunci AES-256 dari string...', 'linf');
+    await sleep(280);
+    const aesKey = autoKey(strVal);
+    log('✓ Kunci: SHA256(string) → ' + aesKey.substring(0,20) + '...', 'lok');
+    log('Mengenkripsi string dengan AES-256-CBC...', 'linf');
+    await sleep(250);
+    const cipher = aesEnc(strVal, aesKey);
+    log('✓ Ciphertext: ' + cipher.substring(0,36) + '...', 'lok');
+    setP(22);
+
+    /* STEP 3 – QR Code */
+    setPipe(3);
+    log('Generate QR Code 200×200px...', 'linf');
+    await sleep(200);
+    const qrSrc = await genQR(strVal);
+    log('✓ QR Code selesai dibuat', 'lok');
+    setP(38);
+
+    /* STEP 4 – LSB Steganografi */
+    setPipe(4);
+    log('Menyisipkan ciphertext ke piksel QR via LSB...', 'linf');
+    await sleep(260);
+    const cv  = G('qrcanvas'), ctx = cv.getContext('2d');
+    cv.width = 200; cv.height = 200;
+    const im = new Image();
+    await new Promise(res => {
+      im.src = qrSrc.tagName === 'CANVAS' ? qrSrc.toDataURL() : qrSrc.src;
+      im.onload = res;
+    });
+    ctx.drawImage(im, 0, 0, 200, 200);
+    const sr  = lsbEmbed(ctx, 200, 200, cipher);
+    const pct = ((sr.bitsUsed / sr.capacity) * 100).toFixed(2);
+    log('✓ ' + sr.bitsUsed + ' bit tersembunyi (' + pct + '% kapasitas)', 'lok');
+    setP(54);
+
+    /* STEP 5 – Generate PDF */
+    setPipe(5);
+    log('Generate PDF laporan dengan jsPDF...', 'linf');
+    await sleep(200);
+    const qrB64 = cv.toDataURL('image/png');
+    const ts = new Date();
+    RD = { strVal, email, aesKey, cipher, bitsUsed: sr.bitsUsed, capacity: sr.capacity, pct, qrB64, ts };
+
+    let pdfBase64;
+    try{
+      pdfBase64 = generatePDFBase64(RD);
+      log('✓ PDF berhasil digenerate', 'lok');
+
+      // Auto-download PDF ke browser
+      log('⬇ Mengunduh PDF ke browser...', 'linf');
+      await sleep(150);
+      downloadPDF(pdfBase64);
+      log('✓ PDF diunduh otomatis', 'lok');
+
+      G('pdfNotif').className = 'pdf-notif show';
+      G('pdfNotifMsg').textContent = 'PDF otomatis diunduh ke browser & sedang dikirim via email...';
+    }catch(pe){
+      log('⚠ PDF generate error: ' + pe.message, 'lwrn');
+      pdfBase64 = null;
+    }
+    setP(72);
+
+    /* STEP 6 – Kirim Email dengan PDF */
+    setPipe(6);
+    log('Mengirim e-tiket PDF ke n8n webhook...', 'linf');
+    showESS('sending', 'Mengirim e-tiket ke ' + email + ' via n8n...');
+    try{
+      const stegoInfo = sr.bitsUsed + ' bit tersembunyi dalam ' + sr.capacity + ' bit kapasitas (' + pct + '%)';
+      await doSend(email, strVal, cipher, aesKey, stegoInfo, pdfBase64);
+      log('✓ Email + e-tiket PDF berhasil dikirim ke ' + email, 'lok');
+      showESS('success', '✓ E-tiket PDF terkirim ke ' + email);
+      G('pdfNotif').className = 'pdf-notif show';
+      G('pdfNotifMsg').textContent = '✓ PDF diunduh ke browser · E-tiket terkirim ke ' + email;
+    } catch(ee){
+      log('⚠ Gagal kirim email: ' + (ee.message || ee), 'lwrn');
+      showESS('error', '✗ Gagal kirim ke n8n — PDF tetap sudah diunduh ke browser Anda');
+      G('pdfNotif').className = 'pdf-notif show';
+      G('pdfNotifMsg').textContent = '⚠ n8n webhook gagal — tapi PDF sudah tersimpan di browser Anda';
+    }
+
+    setP(100);
+
+    G('ri').textContent  = strVal.length > 58 ? strVal.substring(0,58)+'…' : strVal;
+    G('rk').textContent  = aesKey.substring(0,24) + '...';
+    G('rc').textContent  = cipher.substring(0,68) + (cipher.length>68?'…':'');
+    G('rst').textContent = sr.bitsUsed + ' bit · ' + pct + '% kapasitas';
+    G('re').textContent  = email;
+
+    await sleep(300);
+    G('rs').style.display = 'block';
+    G('rs').scrollIntoView({ behavior: 'smooth' });
+
+  } catch(e){
+    log('✗ Error: ' + e.message, 'lerr');
+  } finally {
+    G('genBtn').disabled = false;
+  }
+}
+
+/* ══════════════════════════════
+   KIRIM ULANG
+══════════════════════════════ */
+async function resend(){
+  if(!RD.strVal) return alert('Generate dulu!');
+  showESS('sending', 'Mengirim ulang ke ' + RD.email + '...');
+  try{
+    const si = RD.bitsUsed + ' bit tersembunyi (' + RD.pct + '%)';
+    const pdfBase64 = generatePDFBase64(RD);
+    downloadPDF(pdfBase64);
+    const pdf2 = generatePDFBase64(RD);
+    downloadPDF(pdf2);
+    await doSend(RD.email, RD.strVal, RD.cipher, RD.aesKey, si, pdf2);
+    showESS('success', '✓ Berhasil dikirim ulang + PDF ke ' + RD.email);
+  } catch(e){
+    showESS('error', '✗ ' + (e.message || e));
+  }
+}
+
+/* ══════════════════════════════
+   DOWNLOAD QR
+══════════════════════════════ */
+function dlQR(){
+  const a = document.createElement('a');
+  a.download = 'qr-stegano.png';
+  a.href = G('qrcanvas').toDataURL('image/png');
+  a.click();
+}
+
+/* ══════════════════════════════
+   EXPORT / VIEW PDF
+══════════════════════════════ */
+function exportPDF(){
+  if(!RD.strVal) return alert('Generate QR Code terlebih dahulu!');
+  const pdfBase64 = generatePDFBase64(RD);
+  // Buka di tab baru sebagai preview
+  const pdfWindow = window.open('');
+  pdfWindow.document.write(
+    '<iframe width="100%" height="100%" src="' + pdfBase64 + '" style="border:none;margin:0;padding:0;position:absolute;inset:0"></iframe>'
+  );
+}
+</script>
+</body>
+</html>

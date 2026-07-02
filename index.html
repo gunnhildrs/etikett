@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>OurTicket — Dapatkan Tiketmu</title>
+<title>OurTix</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
@@ -329,6 +329,39 @@ input.invalid{border-color:var(--red)}
 <!-- MAIN -->
 <div class="main">
 
+  <!-- STEP INDICATOR — id st1..st6 wajib ada untuk setStep() -->
+  <div class="steps">
+    <div class="step" id="st1">
+      <div class="step-n">1</div>
+      <div class="step-lbl">Input</div>
+    </div>
+    <div class="step-div"></div>
+    <div class="step" id="st2">
+      <div class="step-n">2</div>
+      <div class="step-lbl">Enkripsi</div>
+    </div>
+    <div class="step-div"></div>
+    <div class="step" id="st3">
+      <div class="step-n">3</div>
+      <div class="step-lbl">QR Code</div>
+    </div>
+    <div class="step-div"></div>
+    <div class="step" id="st4">
+      <div class="step-n">4</div>
+      <div class="step-lbl">Stego</div>
+    </div>
+    <div class="step-div"></div>
+    <div class="step" id="st5">
+      <div class="step-n">5</div>
+      <div class="step-lbl">PDF</div>
+    </div>
+    <div class="step-div"></div>
+    <div class="step" id="st6">
+      <div class="step-n">6</div>
+      <div class="step-lbl">Kirim</div>
+    </div>
+  </div>
+
   <!-- FORM -->
   <div class="card">
     <div class="card-head">
@@ -553,18 +586,15 @@ function buildPDF(d){
   const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   const W=210,H=297,M=15;
 
-  // Header bg
   doc.setFillColor(18,19,26);
   doc.rect(0,0,W,40,'F');
 
-  // Brand
   doc.setFont('helvetica','bold');doc.setFontSize(20);
   doc.setTextColor(167,139,250);doc.text('Our',M,18);
   doc.setTextColor(255,255,255);doc.text('    Ticket',M,18);
   doc.setFontSize(7.5);doc.setFont('helvetica','normal');
   doc.setTextColor(160,163,190);doc.text('E-Tiket Digital Terverifikasi',M,24);
 
-  // Event name
   doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
   doc.text(d.evName,M,32);
   doc.setFontSize(7.5);doc.setFont('helvetica','normal');doc.setTextColor(160,163,190);
@@ -572,20 +602,16 @@ function buildPDF(d){
 
   let y=52;
 
-  // Ticket box
   doc.setFillColor(255,255,255);doc.setDrawColor(220,223,240);doc.setLineWidth(0.5);
   doc.roundedRect(M,y,W-M*2,74,4,4,'FD');
 
-  // Vertical divider
   doc.setDrawColor(220,223,240);doc.setLineWidth(0.4);
   doc.line(M+58,y+2,M+58,y+72);
 
-  // QR
   const qx=M+5,qy=y+5,qs=48;
   doc.setFillColor(255,255,255);doc.rect(qx,qy,qs,qs,'F');
   try{doc.addImage(d.qrB64,'PNG',qx,qy,qs,qs);}catch(e){}
 
-  // Badge
   doc.setFillColor(85,65,215);doc.roundedRect(qx,qy+qs+3,qs,7,2,2,'F');
   doc.setFontSize(6);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
   doc.text('TIKET MASUK',qx+qs/2,qy+qs+7.8,{align:'center'});
@@ -594,7 +620,6 @@ function buildPDF(d){
   doc.setFontSize(5.5);doc.setFont('helvetica','normal');doc.setTextColor(160,163,190);
   doc.text('Scan untuk verifikasi',qx+qs/2,qy+qs+18.5,{align:'center'});
 
-  // Right info
   const rx=M+63;let iy=y+7;
   function fld(lbl,val,yy){
     doc.setFontSize(6);doc.setFont('helvetica','normal');doc.setTextColor(139,144,170);
@@ -635,8 +660,6 @@ function buildPDF(d){
   doc.text(d.verif,rx,iy+4.5);
 
   y+=78;
-
-  // Syarat & Ketentuan
   y+=8;
   doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(85,65,215);
   doc.text('SYARAT & KETENTUAN EVENT',M,y);
@@ -658,7 +681,6 @@ function buildPDF(d){
   doc.setFont('helvetica','normal');doc.setTextColor(139,144,170);
   doc.text('Ketentuan lengkap tersedia di situs resmi penyelenggara.',M,y);
 
-  // Footer
   const fy=H-10;
   doc.setFillColor(244,245,251);doc.rect(0,fy-4,W,14,'F');
   doc.setFontSize(6.5);doc.setFont('helvetica','normal');doc.setTextColor(107,110,143);
@@ -673,12 +695,13 @@ function buildPDF(d){
 function setStep(n){
   for(let i=1;i<=6;i++){
     const s=G('st'+i);
+    if(!s)continue;                      // defensive guard
     s.className='step';
     if(i<n)s.classList.add('done');
     else if(i===n)s.classList.add('active');
     const nd=s.querySelector('.step-n');
-    if(i<n)nd.textContent='✓';
-    else nd.textContent=i;
+    if(!nd)continue;
+    nd.textContent=(i<n)?'✓':i;
   }
 }
 
@@ -798,7 +821,6 @@ async function runPipeline(){
       pdfB64=buildPDF(RD);
       addLog('✓ PDF berhasil dibuat','ok');
       await sleep(100);
-      // auto download
       const a=document.createElement('a');
       a.href=pdfB64;a.download='etiket-'+kode+'.pdf';
       document.body.appendChild(a);a.click();document.body.removeChild(a);
@@ -820,7 +842,7 @@ async function runPipeline(){
     }
     setP(100);
 
-    // update result UI
+    // populate result UI
     G('r-evname').textContent=EV.name;
     G('r-evdate').textContent='📅 '+EV_DATE;
     G('r-evtime').textContent='🕐 '+EV.waktu;
@@ -841,7 +863,6 @@ async function runPipeline(){
     await sleep(350);
     G('result').style.display='block';
     G('result').scrollIntoView({behavior:'smooth',block:'start'});
-    setStep(7);
 
   }catch(e){
     addLog('✗ Error: '+e.message,'err');
